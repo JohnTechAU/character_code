@@ -16,7 +16,7 @@ setInterval(function(){
 		if (entity.target === character.name) continue;
 		var monstersTarget = entity.target
 		let victim = parent.entities[monstersTarget]
-		game_log(id + " -> target: " + entity.target + " " + victim.party)
+		//game_log(id + " -> target: " + entity.target + " " + victim.party)
 		//show_json(victim)
 		if (victim.party === character.party)
 		{
