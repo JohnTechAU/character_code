@@ -9,8 +9,8 @@ var currentTarget = null
 
 setInterval(function(){
 
-	load_code(2);
-	load_code(3);
+	load_code(2); // canCastSkill saved in slot 2
+	load_code(3); // checkAndUseThreshold saved in slot 3
 	loot();
 
 	if(!attack_mode || character.rip || is_moving(character)) return;
