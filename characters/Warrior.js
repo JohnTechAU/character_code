@@ -1,16 +1,11 @@
-// Warrior
-var attack_mode = true
-var currentTarget = null
-
-	//	Working area
-	//show_json(get_party())
-	//show_json(parent.entities)
-	//show_json(character)
+    // Warrior
+    var attack_mode = true
+    var currentTarget = null
+    load_code(2); // canCastSkill saved in slot 2
+    load_code(3); // checkAndUseThreshold saved in slot 3
 
 setInterval(function(){
 
-	load_code(2); // canCastSkill saved in slot 2
-	load_code(3); // checkAndUseThreshold saved in slot 3
 	loot();
 
 	if(!attack_mode || character.rip || is_moving(character)) return;

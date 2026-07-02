@@ -1,17 +1,8 @@
-// Priest
-var attack_mode=true
-
-	//	Working area
-	//var targetPlayer = get_player("massive")
-	//show_json(targetPlayer)
-	//var targetPlayer_Target = get_target_of(targetPlayer)
-	//show_json(targetPlayer_Target)
-	//game_log(targetPlayer_Target.hp)
-	//show_json(get_party())
+    // Priest
+    var attack_mode=true
+	load_code(3);
 
 setInterval(function(){
-
-	load_code(3);
 	loot();
 
 	if(!attack_mode || character.rip || is_moving(character)) return;

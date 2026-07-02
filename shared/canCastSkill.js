@@ -1,4 +1,4 @@
-// Determines if a skill can be cast based on the current value and threshold
+    // Determines if a skill can be cast based on the current value and threshold
 function canCastSkill(target, skillName, mpCost, characterMp) {
     if (!is_in_range(target, skillName)) {
         //game_log(target + " is out of range for " + skillName);

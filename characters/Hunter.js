@@ -1,11 +1,8 @@
-// Hunter
-var attack_mode=true
-
-	//	Working area
+    // Hunter
+    var attack_mode=true
+    load_code(3);
 
 setInterval(function(){
-
-	load_code(3);
 	loot();
 
 	if(!attack_mode || character.rip || is_moving(character)) return;

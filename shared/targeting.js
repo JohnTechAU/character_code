@@ -1,4 +1,5 @@
 	// TARGETING SCRIPT
+    // This is already added into Warrior.js, but you can add it to any character script to have them target the same monster as the Warrior.
     // PLAYER TO SIMP FOR
 	var Player = get_player("massive")
 	
