@@ -25,7 +25,7 @@ setInterval(function(){
 		//show_json(victim)
 		if (victim.party === character.party)
 		{
-			game_log(victim.name + " is in the same party as " + character.name + " attempting to taunt")
+			//game_log(victim.name + " is in the same party as " + character.name + " attempting to taunt")
 			if (!canCastSkill(entity, "taunt", G.skills.taunt.mp, character.mp)) 
 			{ currentTarget = entity }
 			//game_log("Casted Taunt on " + id)
