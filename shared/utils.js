@@ -36,7 +36,8 @@ function canCastSkill(target, skillName, mpCost, characterMp) {
     }
 }
 
-    // Follows a player while maintaining a distance equal to the character's range minus 20 units. If the player is on a different map, it will attempt to smart move to that map and position.
+    // Follows a player. Different map, or same map but far/blocked: hand off to smartFollow
+    // (movement.js), which tracks them across doors. Close by: combat spacing via moveToRange.
 function followPlayer(followedPlayer) {
 
     if (!followedPlayer) {
@@ -45,12 +46,15 @@ function followPlayer(followedPlayer) {
     }
 
     if (followedPlayer.map !== character.map) {
-        set_message("Player is on a different map: " + followedPlayer.map);
-            if (!character.moving) {
-                smart_move({ map: followedPlayer.map, x: followedPlayer.x, y: followedPlayer.y });
-            }
-            return;
-        }
+        set_message("Following to " + followedPlayer.map);
+        smartFollow(followedPlayer);
+        return;
+    }
+    if (distance(character, followedPlayer) > 200 && !can_move_to(followedPlayer.x, followedPlayer.y)) {
+        smartFollow(followedPlayer); // same map but no straight line — needs real pathing
+        return;
+    }
+    if (movement.following()) smartStop("caught up");
     moveToRange(followedPlayer);
 
 }
@@ -58,6 +62,7 @@ function followPlayer(followedPlayer) {
     // Moves the character to maintain a distance equal to the character's range minus 20 units from the target. If the character is already within 10 units of this ideal distance, it will not move.
 function moveToRange(target) {
     {
+        if (typeof movement !== "undefined" && movement.active()) return; // a smart route is driving; don't fight it
         var dist = distance(character, target);
         var idealDist = character.range - 20; // Maintain a distance of character's range minus 20 units
         if (Math.abs(dist - idealDist) <= 10) {

@@ -21,14 +21,13 @@ hunt-and-patch across every character.
 ```
 adventureland-code/
   shared/
-    thresholds.js     # checkAndUseThreshold and similar generic checks
-    targeting.js       # targeting priority chain
-    healing.js          # party-aware healing logic (in progress)
+    utils.js         # threshold checks, targeting helpers, follow/range movement — CODE slot 1
+    movement.js      # custom smart_move: A* pathfinding + cross-map routing — CODE slot 2
   characters/
     warrior.js
     priest.js
-    merchant.js
-  build/               # generated, combined output — not hand-edited (future)
+    hunter.js
+  build/             # generated, combined output — not hand-edited (future)
   README.md
 ```
 
@@ -64,14 +63,34 @@ Longer-term options if this repo grows a lot:
 
 ## Shared functions (current)
 
+Loaded in-game via `load_code(slot)` — `shared/utils.js` lives in CODE
+slot 1, `shared/movement.js` in slot 2. Character files call
+`load_code(1); load_code(2);` at the top.
+
+`shared/utils.js`:
 - `checkAndUseThreshold(currentValue, maxValue, thresholdBelowMax, skillName)`
   — generic "if below X%, use skill" check. Same function, different
   numbers per character.
-- Targeting priority chain — same idea, generic logic, character-specific
-  parameters.
+- `followPlayer(player)` / `moveToRange(target)` — combat-range spacing,
+  handing off to the movement system when the target is far or on
+  another map.
 
-Both are simple enough to leave inline/duplicated for now rather than
-building a load mechanism just for them — revisit if that stops being true.
+`shared/movement.js` — custom replacement for the game's `smart_move`
+(which its own source calls not very smart). It shadows the global, so
+`smart_move(...)` anywhere in our code uses it; the original stays at
+`movement.native` for comparison. What it does differently:
+- Real A* pathfinding on a walkability grid built from each map's wall
+  geometry (built lazily on first visit, cached for the session), with
+  paths smoothed via the game's exact `can_move` collision check.
+- Cross-map routing over doors, the transporter NPC, and the `town`
+  teleport skill — it picks the town teleport when that's genuinely
+  faster, and picks the *nearest reachable* monster location instead of
+  a random one.
+- Runs as its own state machine: stuck detection, re-pathing, and
+  re-routing around doors that fail in practice, instead of giving up.
+- `smartFollow(player)` follows a moving player across maps, re-routing
+  as they move; `smartStop()` cancels; `movement.state()` for debugging;
+  `movement.debug = true` draws the planned path in-game.
 
 ## Planned: party healing
 
