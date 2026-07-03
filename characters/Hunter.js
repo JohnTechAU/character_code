@@ -1,5 +1,6 @@
     // Hunter
     var attack_mode=true
+    var burstMpReserve = 0.6 // Only burst with skills while MP is above this fraction of max
     load_code(1); // Utils saved in slot 1
 
 setInterval(function(){
@@ -47,5 +48,10 @@ setInterval(function(){
 	
 	moveToRange(target);
 	if (can_attack(target)) attack(target);
+
+	// Burst tanky targets with supershot, but only while MP is comfortably above reserve
+	if (isSkillWorthwhile(target.max_hp, character.attack, 10)
+		&& character.mp > character.max_mp * burstMpReserve)
+		canCastSkill(target, "supershot", G.skills.supershot.mp, character.mp);
 
 },1000/4); // Loops every 1/4 seconds.

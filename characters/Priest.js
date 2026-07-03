@@ -1,5 +1,7 @@
     // Priest
     var attack_mode=true
+    var burstMpReserve = 0.6 // Only burst with skills while MP is above this fraction of max
+    var burstHealThreshold = 0.65 // Priest only bursts once a party member drops below this fraction of HP (hard fight)
 	load_code(1); // Utils saved in slot 1
 
 setInterval(function(){
@@ -66,5 +68,10 @@ setInterval(function(){
 	
 	moveToRange(target);
 	if (can_attack(target)) attack(target);
+
+	// Burst with curse only in a hard fight (a party member is hurt) and while MP is above reserve
+	if (mostHurt && mostHurt.hp / mostHurt.max_hp < burstHealThreshold
+		&& character.mp > character.max_mp * burstMpReserve)
+		canCastSkill(target, "curse", G.skills.curse.mp, character.mp);
 
 },1000/4); // Loops every 1/4 seconds.

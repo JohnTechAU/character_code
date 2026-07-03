@@ -6,6 +6,13 @@ function checkAndUseThreshold(currentValue, maxValue, thresholdBelowMax, skillNa
 	}
 }
 
+    // Estimates hits-to-kill (targetMaxHp / myAttack) and returns true if it exceeds hitThreshold,
+    // i.e. the target is tanky enough that spending a skill to burst it down is worthwhile.
+function isSkillWorthwhile(targetMaxHp, myAttack, hitThreshold) {
+    var hits = targetMaxHp / myAttack;
+    return hits > hitThreshold;
+}
+
     // Determines if a skill can be cast based on the current value and threshold
 function canCastSkill(target, skillName, mpCost, characterMp) {
     if (!is_in_range(target, skillName)) {
@@ -48,6 +55,7 @@ function followPlayer(followedPlayer) {
 
 }
 
+    // Moves the character to maintain a distance equal to the character's range minus 20 units from the target. If the character is already within 10 units of this ideal distance, it will not move.
 function moveToRange(target) {
     {
         var dist = distance(character, target);
@@ -71,3 +79,5 @@ function moveToRange(target) {
         );
     }
 }
+
+
