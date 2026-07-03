@@ -33,6 +33,7 @@ setInterval(function(){
 	}
 	else if (!Player)
 	{
+		if ((get_party()||{})["massive"]) { followPlayer("massive"); return; } // partied but out of sight — probably took a door; chase
 		target=get_nearest_monster({min_xp:100,max_att:120});
 		if(target) change_target(target);
 		else

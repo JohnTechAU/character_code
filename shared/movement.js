@@ -27,6 +27,7 @@ var nav = {
 	follow: null,     // name of followed player
 	followPos: null,  // last known {map,x,y} of followed player
 	lastRouteAt: 0,
+	lastGuessAt: 0,   // last time we guessed the followed player took a door
 	lastPos: null,
 	stuckTicks: 0,
 	repaths: 0,
@@ -362,15 +363,45 @@ function reroute(why) {
 	nav.legs = route.legs; nav.legIndex = 0;
 }
 
+    // Nearest door on a map within range of a point (door[0],door[1] is the door's base).
+function doorNearPoint(map, x, y, range) {
+	var doors = G.maps[map].doors || [];
+	for (var i = 0; i < doors.length; i++)
+		if (Math.hypot(doors[i][0] - x, doors[i][1] - y) < range) return doors[i];
+	return null;
+}
+
     // Follow mode: track the target's live position and re-route when it drifts.
+    // When the target isn't visible (out of range, or gone through a door), fall back to
+    // party data (server updates it ~every 60s) and door inference at their last-known spot.
 function followTick() {
 	var target = get_player(nav.follow) || parent.entities[nav.follow];
 	if (target && !target.rip) nav.followPos = { map: target.map, x: target.real_x !== undefined ? target.real_x : target.x, y: target.real_y !== undefined ? target.real_y : target.y };
 	var goal = nav.followPos;
-	if (!goal) return;
 	var cx = character.real_x !== undefined ? character.real_x : character.x;
 	var cy = character.real_y !== undefined ? character.real_y : character.y;
-	if (goal.map == character.map && Math.hypot(cx - goal.x, cy - goal.y) < 100) {
+	if (!target) {
+		var pinfo = (typeof get_party === "function" ? (get_party() || {}) : {})[nav.follow];
+		if (pinfo && pinfo.map) {
+			if (!goal) goal = nav.followPos = { map: pinfo.map, x: pinfo.x, y: pinfo.y };
+			else if (pinfo.map != character.map && goal.map == character.map)
+				goal = nav.followPos = { map: pinfo.map, x: pinfo.x, y: pinfo.y }; // party knows they left this map
+		}
+		if (goal && goal.map == character.map && Math.hypot(cx - goal.x, cy - goal.y) < 25
+			&& Date.now() - nav.lastGuessAt > 10000) {
+			// standing at their last-known spot and they're not here — did they take a door?
+			var door = doorNearPoint(character.map, goal.x, goal.y, 100);
+			if (door && G.maps[door[4]] && G.maps[door[4]].spawns[door[5] || 0]) {
+				nav.lastGuessAt = Date.now();
+				var sp = G.maps[door[4]].spawns[door[5] || 0];
+				goal = nav.followPos = { map: door[4], x: sp[0], y: sp[1] };
+			} else if (pinfo && pinfo.map == character.map && Math.hypot(pinfo.x - goal.x, pinfo.y - goal.y) > 50) {
+				goal = nav.followPos = { map: pinfo.map, x: pinfo.x, y: pinfo.y }; // stale trail; head to party position
+			}
+		}
+	}
+	if (!goal) return;
+	if (target && goal.map == character.map && Math.hypot(cx - goal.x, cy - goal.y) < 100) {
 		nav.legs = []; nav.legIndex = 0; // close enough — combat spacing takes over
 		return;
 	}
