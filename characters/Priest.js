@@ -3,9 +3,16 @@
     var burstMpReserve = 0.6 // Only burst with skills while MP is above this fraction of max
     var burstHealThreshold = 0.65 // Priest only bursts once a party member drops below this fraction of HP (hard fight)
 	load_code(1); // Utils saved in slot 1
+	load_code(2); // Movement saved in slot 2
 
 setInterval(function(){
 	loot();
+
+	// SELF POT - above the moving check so we keep potting while traveling
+	checkAndUseThreshold(character.mp,character.max_mp,300,"use_mp")
+	checkAndUseThreshold(character.mp,character.max_mp,100,"regen_mp")
+	checkAndUseThreshold(character.hp,character.max_hp,200,"use_hp")
+	checkAndUseThreshold(character.hp,character.max_hp,50,"regen_hp")
 
 	if(!attack_mode || character.rip || is_moving(character)) return;
 	
@@ -33,12 +40,6 @@ setInterval(function(){
 			heal(mostHurt)
 		}
 
-	// SELF POT
-	checkAndUseThreshold(character.mp,character.max_mp,300,"use_mp")
-	checkAndUseThreshold(character.mp,character.max_mp,100,"regen_mp")
-	checkAndUseThreshold(character.hp,character.max_hp,200,"use_hp")
-	checkAndUseThreshold(character.hp,character.max_hp,50,"regen_hp")
-	
 	// Target player's target - Do not attack until Player's target is damaged
 	var targetMonster = get_target_of(Player)
 	if (Player && targetMonster && targetMonster.hp < targetMonster.max_hp)

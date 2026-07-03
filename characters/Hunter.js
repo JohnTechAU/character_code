@@ -2,21 +2,22 @@
     var attack_mode=true
     var burstMpReserve = 0.6 // Only burst with skills while MP is above this fraction of max
     load_code(1); // Utils saved in slot 1
+    load_code(2); // Movement saved in slot 2
 
 setInterval(function(){
 	loot();
 
-	if(!attack_mode || character.rip || is_moving(character)) return;
-	
-	// PLAYER TO SIMP FOR
-	var Player = get_player("massive")
-
-	// SELF POT
+	// SELF POT - above the moving check so we keep potting while traveling
 	checkAndUseThreshold(character.mp,character.max_mp,300,"use_mp")
 	checkAndUseThreshold(character.mp,character.max_mp,100,"regen_mp")
 	checkAndUseThreshold(character.hp,character.max_hp,200,"use_hp")
 	checkAndUseThreshold(character.hp,character.max_hp,50,"regen_hp")
-	
+
+	if(!attack_mode || character.rip || is_moving(character)) return;
+
+	// PLAYER TO SIMP FOR
+	var Player = get_player("massive")
+
 	// Target player's target - Do not attack until Player's target is damaged
 	var target=get_targeted_monster();
 	var targetMonster = get_target_of(Player)
