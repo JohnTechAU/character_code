@@ -45,7 +45,7 @@ setInterval(function(){
         }
     }
 	
-    if (!currentTarget || currentTarget.rip)
+    if (!currentTarget)
     {
         // Target player's target
         var targetMonster = get_target_of(Player)
@@ -64,7 +64,7 @@ setInterval(function(){
             }
         }
 	}
-	game_log("target: " + currentTarget.id + " hp: " + currentTarget.hp + " dead: " + currentTarget.rip)
+	//game_log("target: " + currentTarget.id + " hp: " + currentTarget.hp + " dead: " + currentTarget.rip)
     if(!is_in_range(currentTarget))
     {
         move(

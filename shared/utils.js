@@ -29,7 +29,7 @@ function canCastSkill(target, skillName, mpCost, characterMp) {
     }
 }
 
-    // Follows a player by moving towards their position
+    // Follows a player while maintaining a distance equal to the character's range minus 20 units. If the player is on a different map, it will attempt to smart move to that map and position.
 function followPlayer(followedPlayer) {
 
     if (!followedPlayer) {
@@ -37,21 +37,31 @@ function followPlayer(followedPlayer) {
         return;
     }
 
+    if (followedPlayer.map !== character.map) {
+        set_message("Player is on a different map: " + followedPlayer.map);
+            if (!character.moving) {
+                smart_move({ map: followedPlayer.map, x: followedPlayer.x, y: followedPlayer.y });
+            }
+            return;
+        }
+
     var dist = distance(character, followedPlayer);
-    if (dist < 50) {
-        // If the player is within 50 units, stop moving
+    var idealDist = character.range - 100;
+    if (Math.abs(dist - idealDist) <= 20) {
+        // I'm within 10 of my ideal distance — good enough, don't move
         return;
     }
 
-    if (followedPlayer.map !== character.map) {
-        set_message("Player is on a different map: " + followedPlayer.map);
-        if (!character.moving) {
-            smart_move({ map: followedPlayer.map, x: followedPlayer.x, y: followedPlayer.y });
-        }
+    var dx = character.x - followedPlayer.x;
+    var dy = character.y - followedPlayer.y;
+
+    if (dist === 0) {
+        move(followedPlayer.x + idealDist, followedPlayer.y);
         return;
     }
-        move(
-            character.x + (followedPlayer.x - character.x) / 1.3,
-            character.y + (followedPlayer.y - character.y) / 1.3,
-        );
+
+    move(
+        followedPlayer.x + (dx / dist) * idealDist,
+        followedPlayer.y + (dy / dist) * idealDist
+    );
     }

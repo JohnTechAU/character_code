@@ -13,13 +13,13 @@ setInterval(function(){
     followPlayer(Player)
 
 	// SELF POT
-	var target=get_targeted_monster();
 	checkAndUseThreshold(character.mp,character.max_mp,300,"use_mp")
 	checkAndUseThreshold(character.mp,character.max_mp,100,"regen_mp")
 	checkAndUseThreshold(character.hp,character.max_hp,200,"use_hp")
 	checkAndUseThreshold(character.hp,character.max_hp,50,"regen_hp")
 	
 	// Target player's target - Do not attack until Player's target is damaged
+	var target=get_targeted_monster();
 	var targetMonster = get_target_of(Player)
 	if (Player && targetMonster && targetMonster.hp < targetMonster.max_hp)
 	{
