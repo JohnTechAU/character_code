@@ -12,9 +12,8 @@ setInterval(function(){
 	// PLAYER TO SIMP FOR
 	var Player = get_player("massive")
 	var mostHurt = null
+	var target = null
 
-	followPlayer(Player)
-	
 	// Healing logic
 	for (var name in get_party()) {
 		var member = get_player(name)
@@ -48,6 +47,8 @@ setInterval(function(){
 	}
 	else if (Player && targetMonster && targetMonster.hp == targetMonster.max_hp)
 	{
+		// Waiting for Player's target to be damaged — stay with him instead of fighting
+		followPlayer(Player)
 		return;
 	}
 	else if (!Player)
@@ -63,9 +64,11 @@ setInterval(function(){
 	
 	if (!target)
 	{
+		// No fight to position for — follow only when there's no target
+		followPlayer(Player)
 		return;
 	}
-	
+
 	moveToRange(target);
 	if (can_attack(target)) attack(target);
 
