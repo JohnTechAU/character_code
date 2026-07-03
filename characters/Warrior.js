@@ -35,6 +35,15 @@ setInterval(function(){
 	checkAndUseThreshold(character.mp,character.max_mp,100,"regen_mp")
 	checkAndUseThreshold(character.hp,character.max_hp,200,"use_hp")
 	checkAndUseThreshold(character.hp,character.max_hp,50,"regen_hp")
+
+    if (currentTarget)
+    {
+        currentTarget = get_entity(currentTarget.id)
+        if (!currentTarget || currentTarget.rip)
+        {
+            currentTarget = null
+        }
+    }
 	
     if (!currentTarget || currentTarget.rip)
     {

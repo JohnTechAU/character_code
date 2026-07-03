@@ -9,22 +9,28 @@ setInterval(function(){
 	
 	// PLAYER TO SIMP FOR
 	var Player = get_player("massive")
-
-	// Revive Player if dead
-	if (Player && Player.rip)
-	{
-		canCastSkill(Player, "revive", G.skills.revive.mp, character.mp)
-		return;
-	}
+	var mostHurt = null
 
 	followPlayer(Player)
 	
 	// Healing logic
-	if (Player && Player.hp / Player.max_hp <= 0.8)
-	{
-		heal(Player)
+	for (var name in get_party()) {
+		var member = get_player(name)
+		if (member && member.rip) 
+		{
+			canCastSkill(member, "revive", G.skills.revive.mp, character.mp)
+		}
+		if (!member || member.rip) continue;
+		var ratio = member.hp / member.max_hp
+		if (ratio <= 0.8 && (!mostHurt || ratio < mostHurt.hp / mostHurt.max_hp)) {
+			mostHurt = member
+		}
 	}
-	// HEAL ZONE END
+		if (mostHurt)
+		{
+			game_log("Healing " + mostHurt.name)
+			heal(mostHurt)
+		}
 
 	// SELF POT
 	checkAndUseThreshold(character.mp,character.max_mp,300,"use_mp")
