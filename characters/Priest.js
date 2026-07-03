@@ -1,6 +1,6 @@
     // Priest
     var attack_mode=true
-	load_code(3);
+	load_code(1); // Utils saved in slot 1
 
 setInterval(function(){
 	loot();
@@ -8,7 +8,9 @@ setInterval(function(){
 	if(!attack_mode || character.rip || is_moving(character)) return;
 	
 	// PLAYER TO SIMP FOR
-	var Player = get_player("")
+	var Player = get_player("massive")
+
+	followPlayer(Player)
 	
 	// Healling logic
 	if (Player && Player.hp / Player.max_hp <= 0.8)

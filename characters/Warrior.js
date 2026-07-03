@@ -1,8 +1,7 @@
     // Warrior
     var attack_mode = true
     var currentTarget = null
-    load_code(2); // canCastSkill saved in slot 2
-    load_code(3); // checkAndUseThreshold saved in slot 3
+    load_code(1); // Utils saved in slot 1
 
 setInterval(function(){
 
@@ -10,6 +9,7 @@ setInterval(function(){
 
 	if(!attack_mode || character.rip || is_moving(character)) return;
 	
+    // Taunting Logic - Taunt monsters that are attacking party members
 	for (let id in parent.entities) {
 		let entity = parent.entities[id]
 		if (entity.type !== "monster" || !entity.target) continue;
@@ -36,7 +36,7 @@ setInterval(function(){
 	checkAndUseThreshold(character.hp,character.max_hp,200,"use_hp")
 	checkAndUseThreshold(character.hp,character.max_hp,50,"regen_hp")
 	
-    if (!currentTarget || currentTarget.hp <=0)
+    if (!currentTarget || currentTarget.dead)
     {
         // Target player's target
         var targetMonster = get_target_of(Player)
@@ -55,17 +55,17 @@ setInterval(function(){
             }
         }
 	}
-            if(!is_in_range(currentTarget))
-        {
-            move(
-                character.x+(currentTarget.x-character.x)/2,
-                character.y+(currentTarget.y-character.y)/2
-                );
-            // Walk half the distance
-        }
-        else if(can_attack(currentTarget))
-        {
-            set_message("Attacking");
-            attack(currentTarget);
-        }
+	game_log("target: " + currentTarget.id + " hp: " + currentTarget.hp + " dead: " + currentTarget.dead)
+    if(!is_in_range(currentTarget))
+    {
+        move(
+            character.x+(currentTarget.x-character.x)/2,
+            character.y+(currentTarget.y-character.y)/2
+            );
+        // Walk half the distance
+    }
+	else if(can_attack(currentTarget)) {
+		//game_log(distance(character, currentTarget) + " / " + character.range);
+		attack(currentTarget);
+	}
 },1000/4); // Loops every 1/4 seconds.
