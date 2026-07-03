@@ -10,9 +10,16 @@ setInterval(function(){
 	// PLAYER TO SIMP FOR
 	var Player = get_player("massive")
 
+	// Revive Player if dead
+	if (Player && Player.rip)
+	{
+		canCastSkill(Player, "revive", G.skills.revive.mp, character.mp)
+		return;
+	}
+
 	followPlayer(Player)
 	
-	// Healling logic
+	// Healing logic
 	if (Player && Player.hp / Player.max_hp <= 0.8)
 	{
 		heal(Player)

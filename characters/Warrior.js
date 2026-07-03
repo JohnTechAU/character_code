@@ -36,7 +36,7 @@ setInterval(function(){
 	checkAndUseThreshold(character.hp,character.max_hp,200,"use_hp")
 	checkAndUseThreshold(character.hp,character.max_hp,50,"regen_hp")
 	
-    if (!currentTarget || currentTarget.dead)
+    if (!currentTarget || currentTarget.rip)
     {
         // Target player's target
         var targetMonster = get_target_of(Player)
@@ -55,7 +55,7 @@ setInterval(function(){
             }
         }
 	}
-	game_log("target: " + currentTarget.id + " hp: " + currentTarget.hp + " dead: " + currentTarget.dead)
+	game_log("target: " + currentTarget.id + " hp: " + currentTarget.hp + " dead: " + currentTarget.rip)
     if(!is_in_range(currentTarget))
     {
         move(
