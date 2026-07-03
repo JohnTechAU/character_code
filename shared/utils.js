@@ -45,6 +45,21 @@ function followPlayer(followedPlayer) {
         return;
     }
 
+    if (typeof movement === "undefined") {
+        // movement.js (CODE slot 2) isn't loaded — load_code(2) fails silently on an empty slot.
+        // Warn once and fall back to the OOTB follow behavior so the character still functions.
+        if (!followPlayer.warned) {
+            followPlayer.warned = true;
+            game_log("movement.js not loaded — is it saved in CODE slot 2? Using OOTB smart_move", "#CF5B5B");
+        }
+        if (followedPlayer.map !== character.map) {
+            if (!character.moving) smart_move({ map: followedPlayer.map, x: followedPlayer.x, y: followedPlayer.y });
+            return;
+        }
+        moveToRange(followedPlayer);
+        return;
+    }
+
     if (followedPlayer.map !== character.map) {
         set_message("Following to " + followedPlayer.map);
         smartFollow(followedPlayer);
