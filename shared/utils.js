@@ -44,24 +44,30 @@ function followPlayer(followedPlayer) {
             }
             return;
         }
+    moveToRange(followedPlayer);
 
-    var dist = distance(character, followedPlayer);
-    var idealDist = character.range - 100;
-    if (Math.abs(dist - idealDist) <= 20) {
-        // I'm within 10 of my ideal distance — good enough, don't move
-        return;
+}
+
+function moveToRange(target) {
+    {
+        var dist = distance(character, target);
+        var idealDist = character.range - 20; // Maintain a distance of character's range minus 20 units
+        if (Math.abs(dist - idealDist) <= 10) {
+            // I'm within 10 of my ideal distance — good enough, don't move
+            return;
+        }
+
+        var dx = character.x - target.x;
+        var dy = character.y - target.y;
+
+        if (dist === 0) {
+            move(target.x + idealDist, target.y);
+            return;
+        }
+
+        move(
+            target.x + (dx / dist) * idealDist,
+            target.y + (dy / dist) * idealDist
+        );
     }
-
-    var dx = character.x - followedPlayer.x;
-    var dy = character.y - followedPlayer.y;
-
-    if (dist === 0) {
-        move(followedPlayer.x + idealDist, followedPlayer.y);
-        return;
-    }
-
-    move(
-        followedPlayer.x + (dx / dist) * idealDist,
-        followedPlayer.y + (dy / dist) * idealDist
-    );
-    }
+}

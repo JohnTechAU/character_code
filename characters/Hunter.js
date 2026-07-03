@@ -45,18 +45,7 @@ setInterval(function(){
 		return;
 	}
 	
-	if(!is_in_range(target))
-	{
-		move(
-			// Walk half the distance
-			character.x+(target.x-character.x)/2,
-			character.y+(target.y-character.y)/2
-		);
-	}
-	else if(can_attack(target))
-	{
-		set_message("Attacking");
-		attack(target);
-	}
+	moveToRange(target);
+	if (can_attack(target)) attack(target);
 
 },1000/4); // Loops every 1/4 seconds.

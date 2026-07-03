@@ -1,6 +1,6 @@
     // Warrior
     var attack_mode = true
-    var currentTarget = null
+    var target = null
     load_code(1); // Utils saved in slot 1
 
 setInterval(function(){
@@ -22,7 +22,7 @@ setInterval(function(){
 		{
 			//game_log(victim.name + " is in the same party as " + character.name + " attempting to taunt")
 			if (!canCastSkill(entity, "taunt", G.skills.taunt.mp, character.mp)) 
-			{ currentTarget = entity }
+			{ target = entity }
 			//game_log("Casted Taunt on " + id)
 		}
 	}
@@ -36,27 +36,27 @@ setInterval(function(){
 	checkAndUseThreshold(character.hp,character.max_hp,200,"use_hp")
 	checkAndUseThreshold(character.hp,character.max_hp,50,"regen_hp")
 
-    if (currentTarget)
+    if (target)
     {
-        currentTarget = get_entity(currentTarget.id)
-        if (!currentTarget || currentTarget.rip)
+        target = get_entity(target.id)
+        if (!target || target.rip)
         {
-            currentTarget = null
+            target = null
         }
     }
 	
-    if (!currentTarget)
+    if (!target)
     {
         // Target player's target
         var targetMonster = get_target_of(Player)
         if (targetMonster && targetMonster.hp / targetMonster.max_hp < 0.8)
         {
-            currentTarget=targetMonster
+            target=targetMonster
         }
         else
         {
-            currentTarget=get_nearest_monster({min_xp:100,max_att:1200});
-            if(currentTarget) change_target(currentTarget);
+            target=get_nearest_monster({min_xp:100,max_att:1200});
+            if(target) change_target(target);
             else
             {
                 set_message("No Monsters");
@@ -64,17 +64,8 @@ setInterval(function(){
             }
         }
 	}
-	//game_log("target: " + currentTarget.id + " hp: " + currentTarget.hp + " dead: " + currentTarget.rip)
-    if(!is_in_range(currentTarget))
-    {
-        move(
-            character.x+(currentTarget.x-character.x)/2,
-            character.y+(currentTarget.y-character.y)/2
-            );
-        // Walk half the distance
-    }
-	else if(can_attack(currentTarget)) {
-		//game_log(distance(character, currentTarget) + " / " + character.range);
-		attack(currentTarget);
-	}
+
+    	moveToRange(target);
+	if (can_attack(target)) attack(target);
+
 },1000/4); // Loops every 1/4 seconds.
