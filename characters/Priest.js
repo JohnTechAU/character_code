@@ -2,11 +2,18 @@
     var attack_mode=true
     var burstMpReserve = 0.6 // Only burst with skills while MP is above this fraction of max
     var burstHealThreshold = 0.65 // Priest only bursts once a party member drops below this fraction of HP (hard fight)
+	var LEADER_NAME = "massive" // Name of the party leader to follow and support
 	load_code(1); // Utils saved in slot 1
 	load_code(2); // Movement saved in slot 2
 
 setInterval(function(){
 	loot();
+
+	if(!attack_mode || character.rip) return;
+
+	var mostHurt = null
+	var target = null
+	var Leader = get_player(LEADER_NAME) // Re-fetched every tick so we notice when the leader goes out of sight
 
 	// SELF POT - above the moving check so we keep potting while traveling
 	checkAndUseThreshold(character.mp,character.max_mp,300,"use_mp")
@@ -14,14 +21,7 @@ setInterval(function(){
 	checkAndUseThreshold(character.hp,character.max_hp,200,"use_hp")
 	checkAndUseThreshold(character.hp,character.max_hp,50,"regen_hp")
 
-	if(!attack_mode || character.rip || is_moving(character)) return;
-	
-	// PLAYER TO SIMP FOR
-	var Player = get_player("massive")
-	var mostHurt = null
-	var target = null
-
-	// Healing logic
+		// Healing logic
 	for (var name in get_party()) {
 		var member = get_player(name)
 		if (member && member.rip) 
@@ -40,21 +40,23 @@ setInterval(function(){
 			heal(mostHurt)
 		}
 
-	// Target player's target - Do not attack until Player's target is damaged
-	var targetMonster = get_target_of(Player)
-	if (Player && targetMonster && targetMonster.hp < targetMonster.max_hp)
+ 	if(is_moving(character)) return;
+
+	// Target player's target - Do not attack until Leader's target is damaged
+	var targetMonster = get_target_of(Leader)
+	if (Leader && targetMonster && targetMonster.hp < targetMonster.max_hp)
 	{
 		target=targetMonster
 	}
-	else if (Player && targetMonster && targetMonster.hp == targetMonster.max_hp)
+	else if (Leader && targetMonster && targetMonster.hp == targetMonster.max_hp)
 	{
-		// Waiting for Player's target to be damaged — stay with him instead of fighting
-		followPlayer(Player)
+		// Waiting for Leader's target to be damaged — stay with him instead of fighting
+		followPlayer(Leader)
 		return;
 	}
-	else if (!Player)
+	else if (!Leader)
 	{
-		if ((get_party()||{})["massive"]) { followPlayer("massive"); return; } // partied but out of sight — probably took a door; chase
+		if ((get_party()||{})[LEADER_NAME]) { followPlayer(LEADER_NAME); return; } // partied but out of sight — probably took a door; chase
 		target=get_nearest_monster({min_xp:100,max_att:120});
 		if(target) change_target(target);
 		else
@@ -67,7 +69,7 @@ setInterval(function(){
 	if (!target)
 	{
 		// No fight to position for — follow only when there's no target
-		followPlayer(Player)
+		followPlayer(Leader)
 		return;
 	}
 

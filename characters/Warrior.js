@@ -1,7 +1,7 @@
     // Warrior
     var attack_mode = true
     var target = null
-    var TARGET_TYPE = "osnake" // name of monster to target or leave blank for nearest monster
+    var TARGET_TYPE = "croc" // mtype of monster to target or leave blank for nearest monster
     load_code(1); // Utils saved in slot 1
     load_code(2); // Movement saved in slot 2
 
