@@ -2,6 +2,7 @@
     var attack_mode = true
     var target = null
     var TARGET_TYPE = "croc" // mtype of monster to target or leave blank for nearest monster
+    var LEADER_NAME = "" // Name of the party leader to taunt/support for; blank = free mode (just fight TARGET_TYPE, no taunting)
     load_code(1); // Utils saved in slot 1
     load_code(2); // Movement saved in slot 2
 
@@ -17,8 +18,8 @@ setInterval(function(){
 
 	if(!attack_mode || character.rip || is_moving(character)) return;
 	
-    // Taunting Logic - Taunt monsters that are attacking party members
-	for (let id in parent.entities) {
+    // Taunting Logic - Taunt monsters that are attacking party members (group mode only)
+	if (LEADER_NAME) for (let id in parent.entities) {
 		let entity = parent.entities[id]
 		if (entity.type !== "monster" || !entity.target) continue;
 		if (entity.target === character.name) continue;
@@ -29,14 +30,14 @@ setInterval(function(){
 		if (victim.party === character.party)
 		{
 			//game_log(victim.name + " is in the same party as " + character.name + " attempting to taunt")
-			if (!canCastSkill(entity, "taunt", G.skills.taunt.mp, character.mp)) 
+			if (!canCastSkill(entity, "taunt", G.skills.taunt.mp, character.mp))
 			{ target = entity }
 			//game_log("Casted Taunt on " + id)
 		}
 	}
 
 	// PLAYER TO SIMP FOR
-	var Player = get_player("")
+	var Player = get_player(LEADER_NAME)
 
     if (target)
     {

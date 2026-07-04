@@ -2,6 +2,7 @@
     var attack_mode=true
     var burstMpReserve = 0.6 // Only burst with skills while MP is above this fraction of max
     var LEADER_NAME = "massive" // Name of the party leader to follow and support
+    var TARGET_TYPE = "" // mtype to target when no leader is set (free mode) or leave blank for nearest monster
     load_code(1); // Utils saved in slot 1
     load_code(2); // Movement saved in slot 2
 
@@ -34,7 +35,7 @@ setInterval(function(){
 	else if (!Leader)
 	{
 		if ((get_party()||{})[LEADER_NAME]) { followPlayer(LEADER_NAME); return; } // partied but out of sight — probably took a door; chase
-		target=get_nearest_monster({min_xp:100,max_att:120});
+		target = TARGET_TYPE ? get_nearest_monster({type:TARGET_TYPE}) : get_nearest_monster({min_xp:100,max_att:120});
 		if(target) change_target(target);
 		else
 		{
