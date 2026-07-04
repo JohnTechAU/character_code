@@ -1,6 +1,7 @@
     // Warrior
     var attack_mode = true
     var target = null
+    var TARGET_TYPE = "osnake" // name of monster to target or leave blank for nearest monster
     load_code(1); // Utils saved in slot 1
     load_code(2); // Movement saved in slot 2
 
@@ -56,7 +57,7 @@ setInterval(function(){
         }
         else
         {
-            target=get_nearest_monster({min_xp:100,max_att:1200});
+            target = TARGET_TYPE ? get_nearest_monster({type:TARGET_TYPE}) : get_nearest_monster({min_xp:100,max_att:1200});
             if(target) change_target(target);
             else
             {

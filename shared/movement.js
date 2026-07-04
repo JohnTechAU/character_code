@@ -11,6 +11,7 @@
 var movement = {
 	CELL: 8,          // nav-grid cell size in px; smaller = tighter paths, bigger grids
 	debug: false,     // draw the planned path in-game
+	trace: false,     // log every routing decision (doors/Alia/town considered + why rejected)
 	grids: {},        // map name -> built nav grid (session cache)
 	native: null,     // OOTB smart_move, kept for A/B comparison
 	active: function () { return nav.moving && nav.legIndex < nav.legs.length; },
@@ -78,14 +79,21 @@ function getGrid(map) {
 }
 
     // Nearest walkable cell index to a world point, spiraling outward. -1 if none nearby.
-function snapToWalkable(grid, x, y) {
+    // When reachFrom {x,y}+map is given, require a clear straight segment to the cell so we
+    // don't snap the start across a wall (which makes A* begin on the wrong side).
+function snapToWalkable(grid, x, y, map, reachFrom) {
 	var c = Math.floor((x - grid.minX) / grid.cs), r = Math.floor((y - grid.minY) / grid.cs);
-	for (var radius = 0; radius <= 12; radius++) {
+	for (var radius = 0; radius <= 8; radius++) {
 		for (var dr = -radius; dr <= radius; dr++) for (var dc = -radius; dc <= radius; dc++) {
 			if (Math.max(Math.abs(dr), Math.abs(dc)) != radius) continue; // ring only
 			var rr = r + dr, cc = c + dc;
 			if (rr < 0 || cc < 0 || rr >= grid.rows || cc >= grid.cols) continue;
-			if (grid.cells[rr * grid.cols + cc]) return rr * grid.cols + cc;
+			if (!grid.cells[rr * grid.cols + cc]) continue;
+			if (reachFrom) {
+				var cx = grid.minX + (cc + 0.5) * grid.cs, cy = grid.minY + (rr + 0.5) * grid.cs;
+				if (!canWalkSeg(map, reachFrom, { x: cx, y: cy })) continue;
+			}
+			return rr * grid.cols + cc;
 		}
 	}
 	return -1;
@@ -98,7 +106,9 @@ function snapToWalkable(grid, x, y) {
 function gridPath(map, fx, fy, tx, ty) {
 	var grid = getGrid(map);
 	if (!grid) return null;
-	var start = snapToWalkable(grid, fx, fy), goal = snapToWalkable(grid, tx, ty);
+	var start = snapToWalkable(grid, fx, fy, map, { x: fx, y: fy });
+	if (start < 0) start = snapToWalkable(grid, fx, fy); // wedged with no clear cell — take nearest anyway
+	var goal = snapToWalkable(grid, tx, ty);
 	if (start < 0 || goal < 0) return null;
 	var cols = grid.cols, rows = grid.rows, cells = grid.cells, n = cols * rows;
 	var gScore = new Float32Array(n).fill(Infinity);
@@ -188,6 +198,23 @@ function doorPoint(map, door) {
 	return spawn ? { x: spawn[0], y: spawn[1] } : { x: door[0], y: door[1] };
 }
 
+    // World position [x,y] of Alia (the transporter NPC, id "transporter") on a map, or null.
+    // Tolerates every data shape: the live entity (find_npc gives .x/.y) when we're on that
+    // map, and the static G.maps[map].npcs list (position, or positions[] for multi-placement).
+function transporterPos(mapName) {
+	if (mapName == character.map) {
+		var live = find_npc("transporter");
+		if (live && live.x !== undefined) return [live.x, live.y];
+	}
+	var npcs = (G.maps[mapName] || {}).npcs || [];
+	for (var i = 0; i < npcs.length; i++) {
+		if (npcs[i].id != "transporter") continue;
+		if (npcs[i].position) return npcs[i].position;
+		if (npcs[i].positions && npcs[i].positions[0]) return npcs[i].positions[0];
+	}
+	return null;
+}
+
     // Finds the cheapest leg sequence from one {map,x,y} to another.
     // Intra-map distances are straight-line estimates; each walk leg gets exact A* at execution
     // time, and edges that fail in practice go into nav.failedEdges so a reroute avoids them.
@@ -226,19 +253,23 @@ function findRoute(from, to) {
 				d + Math.hypot(node.x - stand.x, node.y - stand.y) + 30,
 				{ walkTo: { map: node.map, x: stand.x, y: stand.y }, transport: { map: door[4], s: door[5] || 0 }, edgeKey: edgeKey }, best);
 		});
-		(map.npcs || []).forEach(function (npc) {
-			if (npc.id != "transporter" || !npc.position) return;
-			for (var place in G.npcs.transporter.places) {
+		var places = G.npcs.transporter && G.npcs.transporter.places;
+		var tpos = places ? transporterPos(node.map) : null;
+		if (movement.trace && !places) game_log("nav: no G.npcs.transporter.places — Alia routing disabled", "#CF5B5B");
+		if (movement.trace && places && !tpos) game_log("nav: no Alia on " + node.map + " (transporterPos null)", "#F5A9A9");
+		if (tpos) {
+			for (var place in places) {
 				if (place == node.map || !G.maps[place]) continue;
-				var s = G.npcs.transporter.places[place], spawn = G.maps[place].spawns[s];
-				if (!spawn) continue;
+				var s = places[place], spawn = G.maps[place].spawns[s];
+				if (!spawn) { if (movement.trace) game_log("nav: Alia->" + place + " has no spawn#" + s, "#F5A9A9"); continue; }
 				var edgeKey = node.map + ">tp>" + place;
-				if (nav.failedEdges[edgeKey]) continue;
+				if (nav.failedEdges[edgeKey]) { if (movement.trace) game_log("nav: Alia->" + place + " marked failed", "#F5A9A9"); continue; }
+				if (movement.trace) game_log("nav: Alia edge " + node.map + "->" + place, "#A9F5A9");
 				relax(place + "|tp", { map: place, x: spawn[0], y: spawn[1] },
-					d + Math.hypot(node.x - npc.position[0], node.y - npc.position[1]) + 30,
-					{ walkTo: { map: node.map, x: npc.position[0], y: npc.position[1] }, transport: { map: place, s: s }, edgeKey: edgeKey }, best);
+					d + Math.hypot(node.x - tpos[0], node.y - tpos[1]) + 30,
+					{ walkTo: { map: node.map, x: tpos[0], y: tpos[1] }, transport: { map: place, s: s }, edgeKey: edgeKey }, best);
 			}
-		});
+		}
 		if (map.spawns && map.spawns[0] && !nav.failedEdges[node.map + ">town"])
 			relax(node.map + "|town", { map: node.map, x: map.spawns[0][0], y: map.spawns[0][1] },
 				d + townCost(), { town: true, edgeKey: node.map + ">town" }, best);
@@ -352,10 +383,10 @@ function legDone() {
 
     // Recompute the whole route from wherever we are; fail out after too many attempts.
 function reroute(why) {
+	if (nav.mode == "follow") { nav.legs = []; nav.legIndex = 0; return; } // followTick re-routes; never give up on a live follow
 	nav.reroutes++;
 	if (nav.reroutes > 4) { navDone(false, "failed"); return; }
 	game_log("nav: rerouting (" + why + ")", "#F7D358");
-	if (nav.mode == "follow") { nav.legs = []; nav.legIndex = 0; return; } // followTick re-routes
 	var cx = character.real_x !== undefined ? character.real_x : character.x;
 	var cy = character.real_y !== undefined ? character.real_y : character.y;
 	var route = findRoute({ map: character.map, x: cx, y: cy }, nav.dest);
@@ -387,7 +418,10 @@ function followTick() {
 			else if (pinfo.map != character.map && goal.map == character.map)
 				goal = nav.followPos = { map: pinfo.map, x: pinfo.x, y: pinfo.y }; // party knows they left this map
 		}
-		if (goal && goal.map == character.map && Math.hypot(cx - goal.x, cy - goal.y) < 25
+		// Party data is authoritative for which map they're on — only fall back to guessing a
+		// door when we have no cross-map party info, so we don't chase a door they never took.
+		var haveMapFromParty = pinfo && pinfo.map && pinfo.map != character.map;
+		if (!haveMapFromParty && goal && goal.map == character.map && Math.hypot(cx - goal.x, cy - goal.y) < 25
 			&& Date.now() - nav.lastGuessAt > 10000) {
 			// standing at their last-known spot and they're not here — did they take a door?
 			var door = doorNearPoint(character.map, goal.x, goal.y, 100);
@@ -434,7 +468,8 @@ function resolveDestination(destination, from) {
 	if (is_string(destination)) destination = { to: destination };
 	if ("x" in destination) return { map: destination.map || character.map, x: destination.x, y: destination.y };
 	var to = destination.to || destination.map;
-	if (to == "town") to = "main";
+	if (to == "town" || to == "mainland") to = "main";
+	if (to == "desert") to = "desertland"; // canonical map id is desertland; accept the short name
 	if (G.events[to] && parent.S[to] && G.events[to].join) return { join: to };
 	if (G.monsters[to]) {
 		var candidates = [];
@@ -518,7 +553,70 @@ function smartStop(reason) {
 	if (nav.moving) navDone(false, reason || "stopped");
 }
 
+    // Diagnostic: compute and log the route to a destination WITHOUT moving. Returns the legs.
+    // Flags whether the plan uses Alia (a transport leg) — the quick check for "why did it walk
+    // the whole way instead of teleporting?". Usage in-game: movement.plan("winterland").
+function planRoute(destination) {
+	var cx = character.real_x !== undefined ? character.real_x : character.x;
+	var cy = character.real_y !== undefined ? character.real_y : character.y;
+	var from = { map: character.map, x: cx, y: cy };
+	var dest = resolveDestination(destination, from);
+	if (!dest) { console.log("movement.plan: unrecognized location"); return null; }
+	if (dest.join) { console.log("movement.plan: join event " + dest.join); return dest; }
+	var route = findRoute(from, dest);
+	if (!route) { console.log("movement.plan: no route to " + dest.map + " " + Math.round(dest.x) + "," + Math.round(dest.y)); return null; }
+	var summary = route.legs.map(function (l) { return l.type + (l.map ? "->" + l.map : ""); }).join("  ");
+	var usesAlia = route.legs.some(function (l) { return l.type == "transport"; });
+	console.log("movement.plan: " + route.legs.length + " legs, cost " + Math.round(route.cost)
+		+ (usesAlia ? " [uses Alia]" : " [no transport]") + "\n  " + summary);
+	return route.legs;
+}
+movement.plan = planRoute;
+
+    // Deep diagnostic for "why isn't it using Alia?". Dumps the exact transporter game-state the
+    // router depends on — the .places table, where Alia's NPC actually lives and in what data
+    // shape, what transporterPos() resolves to, then a traced plan. Run: movement.diagnose("winterland")
+function diagnose(destination) {
+	function log(s) { console.log("diag: " + s); }
+	log("char on " + character.map + " at " + Math.round(character.real_x) + "," + Math.round(character.real_y));
+	var T = G.npcs.transporter;
+	log("G.npcs.transporter: " + (T ? "present" : "MISSING (Alia routing impossible)"));
+	if (T) log("  .places = " + JSON.stringify(T.places));
+	// Which maps actually place a transporter NPC, and in what field shape?
+	var found = [];
+	for (var mm in G.maps) if ((G.maps[mm].npcs || []).some(function (n) { return n.id == "transporter"; })) found.push(mm);
+	log("maps whose G.maps[m].npcs contains id 'transporter': " + JSON.stringify(found));
+	found.concat(found.length ? [] : ["main"]).forEach(function (m) {
+		var entries = (G.maps[m] || {}).npcs || [];
+		var tp = entries.filter(function (n) { return n.id == "transporter"; })
+			.map(function (n) { return { keys: Object.keys(n), position: n.position, positions: n.positions }; });
+		log(m + " transporter entry shape: " + JSON.stringify(tp));
+		log("  transporterPos(" + m + ") = " + JSON.stringify(transporterPos(m)));
+	});
+	var live = (typeof find_npc === "function") ? find_npc("transporter") : null;
+	log("find_npc('transporter') on current map: " + (live ? ("x=" + live.x + " y=" + live.y + " map=" + live.map) : "null (not on this map)"));
+	if (T && T.places) for (var place in T.places) {
+		var s = T.places[place], sp = (G.maps[place] || {}).spawns;
+		log("  dest " + place + " spawn#" + s + " -> " + (sp && sp[s] ? JSON.stringify(sp[s]) : "MISSING map or spawn"));
+	}
+	if (destination !== undefined) {
+		var wasTrace = movement.trace; movement.trace = true;
+		log("--- traced plan to " + JSON.stringify(destination) + " ---");
+		planRoute(destination);
+		movement.trace = wasTrace;
+	}
+}
+movement.diagnose = diagnose;
+
     // Shadow the OOTB smart_move so every existing call site gets the new behavior.
     // The original stays reachable at movement.native for side-by-side comparison.
 movement.native = smart_move;
 smart_move = smartMove;
+
+    // `movement` is a `var`, so it's local to this script's scope — reachable from our own
+    // functions but NOT from the eval console (where `movement.debug = true` throws
+    // "movement is not defined"). Publish it as a global on both this frame and the parent
+    // (character code runs in a child frame; the console may eval in either) so debug flags
+    // and movement.plan/diagnose are usable interactively.
+try { window.movement = movement; } catch (e) {}
+try { if (typeof parent !== "undefined" && parent !== window) parent.movement = movement; } catch (e) {}
