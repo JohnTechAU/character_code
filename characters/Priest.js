@@ -4,6 +4,7 @@
     var burstHealThreshold = 0.65 // Priest only bursts once a party member drops below this fraction of HP (hard fight)
 	var LEADER_NAME = "massive" // Name of the party leader to follow and support
 	var TARGET_TYPE = "" // mtype to target when no leader is set (free mode) or leave blank for nearest monster
+	var REVIVE_RANGE = 250 // Cast range for revive; verify against G.skills.revive.range in-game and tune if needed
 	load_code(1); // Utils saved in slot 1
 	load_code(2); // Movement saved in slot 2
 
@@ -14,6 +15,8 @@ setInterval(function(){
 
 	var mostHurt = null
 	var target = null
+	var nearestRip = null // Closest rip'd party member on our map — who to rush toward for revive
+	var nearestRipDist = Infinity
 	var Leader = get_player(LEADER_NAME) // Re-fetched every tick so we notice when the leader goes out of sight
 
 	// SELF POT - above the moving check so we keep potting while traveling
@@ -25,9 +28,13 @@ setInterval(function(){
 		// Healing logic
 	for (var name in get_party()) {
 		var member = get_player(name)
-		if (member && member.rip) 
+		if (member && member.rip)
 		{
 			canCastSkill(member, "revive", G.skills.revive.mp, character.mp)
+			if (member.map === character.map) {
+				var ripDist = distance(character, member)
+				if (ripDist < nearestRipDist) { nearestRipDist = ripDist; nearestRip = member }
+			}
 		}
 		if (!member || member.rip) continue;
 		var ratio = member.hp / member.max_hp
@@ -41,6 +48,14 @@ setInterval(function(){
 			heal(mostHurt)
 		}
 
+	// RUSH TO REVIVE - interrupts following/combat positioning to close distance on the nearest
+	// rip'd party member, so revive (attempted above) can land as soon as possible.
+	if (nearestRip)
+	{
+		moveToDistance(nearestRip, REVIVE_RANGE - 20)
+		return;
+	}
+
  	if(is_moving(character)) return;
 
 	// Target player's target - Do not attack until Leader's target is damaged
@@ -52,6 +67,12 @@ setInterval(function(){
 	else if (Leader && targetMonster && targetMonster.hp == targetMonster.max_hp)
 	{
 		// Waiting for Leader's target to be damaged — stay with him instead of fighting
+		followPlayer(Leader)
+		return;
+	}
+	else if (Leader && !targetMonster)
+	{
+		// Leader has no target yet — stay with him instead of fighting on our own
 		followPlayer(Leader)
 		return;
 	}

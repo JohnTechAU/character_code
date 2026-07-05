@@ -32,6 +32,12 @@ setInterval(function(){
 		followPlayer(Leader)
 		return;
 	}
+	else if (Leader && !targetMonster)
+	{
+		// Leader has no target yet — stay with him instead of fighting on our own
+		followPlayer(Leader)
+		return;
+	}
 	else if (!Leader)
 	{
 		if ((get_party()||{})[LEADER_NAME]) { followPlayer(LEADER_NAME); return; } // partied but out of sight — probably took a door; chase

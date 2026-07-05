@@ -73,34 +73,72 @@ function followPlayer(followedPlayer) {
         return;
     }
     if (movement.following()) smartStop("caught up");
-    moveToRange(entity);
+    followLeash(entity);
 
 }
 
-    // Moves the character to maintain a distance equal to the character's range minus 20 units from the target. If the character is already within 10 units of this ideal distance, it will not move.
-function moveToRange(target) {
-    {
-        if (typeof movement !== "undefined" && movement.active()) return; // a smart route is driving; don't fight it
-        var dist = distance(character, target);
-        var idealDist = character.range - 20; // Maintain a distance of character's range minus 20 units
-        if (Math.abs(dist - idealDist) <= 10) {
-            // I'm within 10 of my ideal distance — good enough, don't move
-            return;
-        }
-
-        var dx = character.x - target.x;
-        var dy = character.y - target.y;
-
-        if (dist === 0) {
-            move(target.x + idealDist, target.y);
-            return;
-        }
-
-        move(
-            target.x + (dx / dist) * idealDist,
-            target.y + (dy / dist) * idealDist
-        );
+    // True unless the point sits within an aggressive, untanked monster's range — i.e. a monster
+    // with aggro > 0 whose current target isn't the leader. Used to keep idle-follow movement
+    // from walking hunter/priest into a fight the leader isn't already tanking.
+function isDestinationSafe(x, y, leaderName) {
+    for (let id in parent.entities) {
+        let entity = parent.entities[id];
+        if (entity.type !== "monster") continue;
+        var mData = G.monsters[entity.mtype];
+        if (!mData || !mData.aggro) continue;
+        if (entity.target === leaderName) continue;
+        if (distance({ x: x, y: y }, entity) < mData.range) return false;
     }
+    return true;
+}
+
+    // Idle-follow: only moves once farther than character.range from the leader (a wide "close
+    // enough" leash instead of moveToRange's exact-distance lock), and when it does move, it aims
+    // for the leader position - 20 (same spot moveToRange would pick) but skips the move entirely
+    // if that spot isn't safe from untanked aggressive monsters.
+function followLeash(leader) {
+    if (typeof movement !== "undefined" && movement.active()) return; // a smart route is driving; don't fight it
+    var dist = distance(character, leader);
+    if (dist <= character.range) return; // inside the leash — close enough, don't move
+
+    var idealDist = character.range - 20;
+    var dx = character.x - leader.x;
+    var dy = character.y - leader.y;
+    var destX = dist === 0 ? leader.x + idealDist : leader.x + (dx / dist) * idealDist;
+    var destY = dist === 0 ? leader.y : leader.y + (dy / dist) * idealDist;
+
+    if (!isDestinationSafe(destX, destY, leader.name)) return; // unsafe — stand still instead
+
+    move(destX, destY);
+}
+
+    // Moves the character to sit at idealDist units from target. No-ops if already within
+    // 10 units of that distance, or if a smart route (movement.js) is actively driving.
+function moveToDistance(target, idealDist) {
+    if (typeof movement !== "undefined" && movement.active()) return; // a smart route is driving; don't fight it
+    var dist = distance(character, target);
+    if (Math.abs(dist - idealDist) <= 10) {
+        // Already within 10 of the ideal distance — good enough, don't move
+        return;
+    }
+
+    var dx = character.x - target.x;
+    var dy = character.y - target.y;
+
+    if (dist === 0) {
+        move(target.x + idealDist, target.y);
+        return;
+    }
+
+    move(
+        target.x + (dx / dist) * idealDist,
+        target.y + (dy / dist) * idealDist
+    );
+}
+
+    // Moves the character to maintain a distance equal to the character's range minus 20 units from the target (thin wrapper over moveToDistance).
+function moveToRange(target) {
+    moveToDistance(target, character.range - 20);
 }
 
 
