@@ -12,7 +12,8 @@ var movement = {
 	CELL: 8,          // nav-grid cell size in px; smaller = tighter paths, bigger grids
 	debug: false,     // draw the planned path in-game
 	trace: false,     // log every routing decision (doors/Alia/town + why rejected)
-	cmLog: true,      // log every party-position CM sent/received (toggle: smart_move.cm(false))
+	cmLog: false,     // log every party-position CM sent/received (toggle: smart_move.cm(true)) — off by default, floods the log
+	tpLog: true,      // log town-teleport coordination CMs (start/cancel) separately from position spam (toggle: smart_move.tpLog(false))
 	grids: {},        // map name -> built nav grid (session cache)
 	// Alia (the "transporter" NPC) is an external/live entity on this server (id "$Alia",
 	// npc "transporter"), NOT a static G.maps npc — so her position only exists while she's
@@ -396,14 +397,21 @@ setInterval(function () { navTick(); }, 80);
 
     // ---------- party position sharing over code messages (send_cm / on_cm) ----------
 
+    // Other party member names, or [] if get_party()/send_cm aren't available — shared by the
+    // position broadcast and the town-teleport signal below.
+function partyMates() {
+	if (typeof send_cm !== "function" || typeof get_party !== "function") return [];
+	var party = get_party() || {};
+	var mates = [];
+	for (var name in party) if (name != character.name) mates.push(name);
+	return mates;
+}
+
     // Broadcast our own live position to the rest of the party ~1/sec. Every character does this,
     // so followers get each other's map+coords the instant someone Alia-portals — no waiting on
     // the slow server party refresh. Payload is tiny (rounded ints under an "ml_pos" key).
 setInterval(function () {
-	if (typeof send_cm !== "function" || typeof get_party !== "function") return;
-	var party = get_party() || {};
-	var mates = [];
-	for (var name in party) if (name != character.name) mates.push(name);
+	var mates = partyMates();
 	if (!mates.length) return;
 	var cx = character.real_x !== undefined ? character.real_x : character.x;
 	var cy = character.real_y !== undefined ? character.real_y : character.y;
@@ -414,14 +422,51 @@ setInterval(function () {
 	} catch (e) {}
 }, 1000);
 
+    // Town-teleport coordination: "start" is sent the instant we cast town (townTick), so anyone
+    // following us can fire their own town cast in parallel instead of waiting to notice we jumped.
+    // "cancel" is sent if our channel gets interrupted (e.g. we got hit) before it landed — a
+    // follower whose own cast is still mid-channel self-interrupts to avoid teleporting alone
+    // while we stayed behind. No "success" message: a follower who got "start" already cast their
+    // own and lands on their own; nothing left to react to.
+function sendTpSignal(kind) {
+	var mates = partyMates();
+	if (!mates.length) return;
+	try {
+		send_cm(mates, { tp: kind });
+		if (movement.tpLog) game_log("cm> tp " + kind + " -> " + mates.join(","), "#FFD37F");
+	} catch (e) {}
+}
+
+    // Watches our OWN town-teleport channel (independent of whether we're mid-leg or reacting to
+    // someone else's "start") and reports how it ended. character.c.town going true->false with
+    // the skill NOT on cooldown means it never actually fired — interrupted, not completed.
+(function () {
+	var wasChanneling = false;
+	setInterval(function () {
+		var channeling = !!(character.c && character.c.town);
+		if (wasChanneling && !channeling && typeof is_on_cooldown === "function" && !is_on_cooldown("town"))
+			sendTpSignal("cancel");
+		wasChanneling = channeling;
+	}, 250);
+})();
+
     // Register a global on_cm handler, chaining any pre-existing one so unrelated code messages
-    // still reach it. We only consume our own "ml_pos" packets; everything else passes through.
+    // still reach it. We consume our own "ml_pos"/"tp" packets; everything else passes through.
 (function () {
 	var prevOnCm = (typeof on_cm === "function") ? on_cm : null;
 	on_cm = function (name, data) {
 		if (data && data.ml_pos && data.ml_pos.map) {
 			movement.partyPos[name] = { map: data.ml_pos.map, x: data.ml_pos.x, y: data.ml_pos.y, t: Date.now() };
 			if (movement.cmLog) game_log("cm< pos " + name + " @ " + data.ml_pos.map + " " + data.ml_pos.x + "," + data.ml_pos.y, "#A9D0FF");
+		}
+		if (data && data.tp && name == nav.follow) {
+			if (movement.tpLog) game_log("cm< tp " + data.tp + " from " + name, "#FFD37F");
+			if (data.tp == "start") {
+				if (!(character.c && character.c.town) && (typeof is_on_cooldown !== "function" || !is_on_cooldown("town")))
+					use_skill("town");
+			} else if (data.tp == "cancel") {
+				if (character.c && character.c.town) move(character.x, character.y); // self-interrupt to stay in sync
+			}
 		}
 		if (prevOnCm) prevOnCm(name, data);
 	};
@@ -550,6 +595,7 @@ function townTick(leg) {
 		leg.tries = (leg.tries || 0) + 1;
 		if (leg.tries > 2) { nav.failedEdges[leg.edgeKey] = Date.now(); reroute("town failed"); return; }
 		use_skill("town");
+		sendTpSignal("start");
 		leg.requested = now;
 	}
 }
@@ -827,6 +873,7 @@ smart_move.plan = planRoute;
 smart_move.diagnose = diagnose;
 smart_move.trace = function (on) { movement.trace = (on !== false); return "movement.trace = " + movement.trace; };
 smart_move.cm = function (on) { movement.cmLog = (on !== false); return "movement.cmLog = " + movement.cmLog; };
+smart_move.tpLog = function (on) { movement.tpLog = (on !== false); return "movement.tpLog = " + movement.tpLog; };
 smart_move.follow = smartFollow; // manual follow: smart_move.follow("massive")
 smart_move.stop = smartStop;     // cancel a follow/route: smart_move.stop()
 smart_move.failedEdges = function () { return nav.failedEdges; }; // inspect the blacklist: smart_move.failedEdges()
@@ -853,6 +900,7 @@ smart_move.clearFailed = function () { var n = Object.keys(nav.failedEdges).leng
 			w.mtrace = function (on) { movement.trace = (on !== false); return "movement.trace = " + movement.trace; };
 			w.mdebug = function (on) { movement.debug = (on !== false); return "movement.debug = " + movement.debug; };
 			w.mcm = function (on) { movement.cmLog = (on !== false); return "movement.cmLog = " + movement.cmLog; };
+			w.mtplog = function (on) { movement.tpLog = (on !== false); return "movement.tpLog = " + movement.tpLog; };
 			w.mfollow = smartFollow; // bare-global manual follow: mfollow("massive")
 			w.mstop = smartStop;
 			w.mfailed = function () { return nav.failedEdges; };
@@ -863,4 +911,4 @@ smart_move.clearFailed = function () { var n = Object.keys(nav.failedEdges).leng
 
     // Load stamp: prints in-game on load_code so you can confirm THIS version is the one running.
     // If you don't see this line after load_code(2), the slot has a stale/partial paste.
-if (typeof game_log === "function") game_log("movement.js loaded v18 — gridPath falls back to closest reachable point when goal is in a disconnected region (e.g. Alia behind indoor wall geometry) instead of failing outright", "#8CE1FF");
+if (typeof game_log === "function") game_log("movement.js loaded v20 — cmLog (position spam) now off by default; town-teleport start/cancel signals log separately under tpLog", "#8CE1FF");

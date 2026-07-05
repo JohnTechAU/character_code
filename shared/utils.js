@@ -125,15 +125,22 @@ function moveToDistance(target, idealDist) {
     var dx = character.x - target.x;
     var dy = character.y - target.y;
 
-    if (dist === 0) {
-        move(target.x + idealDist, target.y);
-        return;
+    var destX = dist === 0 ? target.x + idealDist : target.x + (dx / dist) * idealDist;
+    var destY = dist === 0 ? target.y : target.y + (dy / dist) * idealDist;
+
+    // moveToDistance's straight-line move has no wall-awareness — fine for a clear approach, but
+    // a target that's Euclidean-close yet on the far side of wall geometry (e.g. bees split across
+    // adjacent spawn regions) sends the character walking straight into that wall. Check the line
+    // first (can_move_to, same built-in followPlayer already uses for this) and detour through
+    // smart_move's pathfinding when it's blocked, instead of walking straight at the obstruction.
+    if (!can_move_to(destX, destY)) {
+        // movement.active() is already known false (guarded at the top of this function), so it's
+        // safe to kick off a route here without fighting an in-progress one.
+        if (typeof movement !== "undefined") { smart_move({ x: target.x, y: target.y }); return; }
+        // movement.js not loaded — no pathfinding available, fall back to the straight-line move.
     }
 
-    move(
-        target.x + (dx / dist) * idealDist,
-        target.y + (dy / dist) * idealDist
-    );
+    move(destX, destY);
 }
 
     // Moves the character to maintain a distance equal to the character's range minus 20 units from the target (thin wrapper over moveToDistance).

@@ -5,7 +5,9 @@
     var LEADER_NAME = "" // Name of the party leader to taunt/support for; blank = free mode (just fight TARGET_TYPE, no taunting)
     var FARM_MODE = true // Cycle through zones[ZONE] in order, farming each type down to level 1 before moving on
     var ZONE = "main" // Zone to farm: main | winterland | desertland (see shared/zones.js)
+    var ZONE_ORDER = "efficient" // "efficient" (nearest-neighbor route by spawn coordinates) | "random"
     var farmIndex = 0
+    var farmList = null // cached order of types to farm, built once from ZONE_ORDER on first use (see shared/zones.js)
     var farmLocations = []   // cached spawn-region centers for TARGET_TYPE (a mob can have several, e.g. bees)
     var farmLocIndex = 0     // which farmLocations entry we're currently headed to/farming
     var farmLocType = null   // TARGET_TYPE farmLocations was computed for (cache-invalidation key)
@@ -29,31 +31,47 @@ setInterval(function(){
     // FARM MODE - cycle through zones[ZONE], farming each type down to level 1 before advancing.
     // Skipped while movement.js is already driving a route (e.g. mid-travel to the next group).
 	if (FARM_MODE && typeof movement !== "undefined" && !movement.active()) {
-		var farmList = zones[ZONE] || [];
+		if (!farmList) {
+			farmList = ZONE_ORDER === "random" ? buildRandomOrder(ZONE) : buildEfficientOrder(ZONE, character);
+		}
 		if (farmList.length) {
 			TARGET_TYPE = farmList[farmIndex % farmList.length];
 
-			// Recompute known spawn locations only when TARGET_TYPE changed.
+			// Recompute known spawn locations only when TARGET_TYPE changed. Sorted nearest-first
+			// from wherever the character is right now (i.e. wherever farming the previous type
+			// left off), so a type with several spawn regions (e.g. bees) is visited in the order
+			// that's closest to walk, not the order the map data happens to list them in.
 			if (farmLocType !== TARGET_TYPE) {
-				farmLocations = findZoneGroupLocations(ZONE, TARGET_TYPE);
+				farmLocations = findZoneGroupLocations(ZONE, TARGET_TYPE).sort(function (a, b) {
+					return distance(character, a) - distance(character, b);
+				});
 				farmLocIndex = 0;
 				farmLocType = TARGET_TYPE;
 				farmStuckSince = null;
 			}
 
-			// Only count monsters actually close enough to fight in place as "visible" — the
-			// engine's parent.entities (and get_nearest_monster) can know about monsters on the
-			// far side of the map (e.g. bees' other spawn points), and moveToRange below moves in
-			// a straight line with no pathfinding, so treating a distant monster as "visible"
-			// causes the character to walk straight at it and get stuck on terrain instead of
-			// using smart_move's pathfinding to travel there first.
-			var NEARBY_RANGE = 400;
-			var visible = [];
+			// ARRIVAL_RANGE only answers "am I close enough to farmLocations[farmLocIndex] to
+			// call this location visited" — it drives the stuck-timer/rotate-location logic
+			// below, nothing else. Bee has ~3 spawn regions close enough together that the old
+			// single NEARBY_RANGE=400 also got used (wrongly) to decide "is this type farmed
+			// out", which let a level>1 straggler in one region block progress forever while the
+			// character kept killing easy level-1 spawns in another. The hunt scan below is
+			// deliberately NOT range-limited: a monster stays "unfarmed" no matter which of the
+			// type's spawn regions it's actually in.
+			var ARRIVAL_RANGE = 150;
+			var anyNearby = false;
+			var huntTarget = null;
+			var huntDist = null;
 			for (let id in parent.entities) {
 				let e = parent.entities[id];
-				if (e.type === "monster" && e.mtype === TARGET_TYPE && !e.rip && distance(character, e) <= NEARBY_RANGE) visible.push(e);
+				if (e.type !== "monster" || e.mtype !== TARGET_TYPE || e.rip) continue;
+				if (distance(character, e) <= ARRIVAL_RANGE) anyNearby = true;
+				if (e.level > 1) {
+					let d = distance(character, e);
+					if (huntTarget === null || d < huntDist) { huntTarget = e; huntDist = d; }
+				}
 			}
-			if (!visible.length) {
+			if (!anyNearby) {
 				if (farmLocations.length) {
 					// Stuck escape: if nothing has become visible at this location for too
 					// long (bad boundary data, or nothing has respawned there), stop
@@ -70,9 +88,19 @@ setInterval(function(){
 					set_message(TARGET_TYPE + " (no location)");
 				}
 				return;
-			} else if (visible.every(function (e) { return e.level <= 1; })) {
+			} else if (huntTarget) {
+				// Something of this type is still above level 1 — walk straight to it (via the
+				// shared moveToRange/attack below, which pathfinds through smart_move when it's
+				// not in a direct line) instead of passively fighting whatever's nearest.
 				farmStuckSince = null;
-				// Visit every known location for this type before moving on to the next type.
+				target = huntTarget;
+				set_message("Hunting " + TARGET_TYPE + " (lvl " + huntTarget.level + ")");
+				// Fall through: no return here, so the shared target-revalidation/moveToRange/
+				// attack logic at the bottom of the loop actually drives movement and combat.
+			} else {
+				farmStuckSince = null;
+				// Everything known of this type is level <= 1 — farmed out. Visit every known
+				// location for this type before moving on to the next type.
 				if (farmLocIndex + 1 < farmLocations.length) {
 					farmLocIndex++;
 				} else {
@@ -81,9 +109,6 @@ setInterval(function(){
 				}
 				target = null;
 				return;
-			} else {
-				farmStuckSince = null;
-				set_message("Farming " + TARGET_TYPE);
 			}
 		}
 	}
